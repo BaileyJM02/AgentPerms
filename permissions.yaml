@@ -1,0 +1,222 @@
+# Single source of truth for agent permissions — tool-neutral rules only;
+# agentperms translates them into each agent's native format.
+#
+#   agentperms            # preview what would be generated
+#   agentperms -write     # splice into the live config files (backs up *.bak)
+#
+# Targets:
+#   claude     -> ~/.claude/settings.json       permissions.allow/ask/deny
+#   zed        -> ~/.config/zed/settings.json   agent.tool_permissions (NATIVE agent only)
+#   cursor     -> ~/.cursor/cli-config.json     permissions.allow/deny (union-merged)
+#   cursor-ide -> ~/.cursor/permissions.json    terminalAllowlist/mcpAllowlist (IDE agent
+#                 panel; replaces in-app allowlists; "only: [cursor]" covers this too)
+#
+# Prefix syntax: "*" = any single token ("gh -R * pr view"); "~/..." matches
+# both spellings of home; a trailing "/" means any continuation.
+# Cursor can't express ask rules, flag conditions, or wildcard/path tokens —
+# those rules are simply not emitted for it (it prompts by default).
+# Claude keeps its PreToolUse hook for sensitive files (spares .env.example),
+# so the deny rules below target zed+cursor.
+
+zed_default: confirm
+
+rules:
+  # ---------- build / test tooling ----------
+  - {kind: command, action: allow, prefix: go}
+  - {kind: command, action: allow, prefix: make}
+  - {kind: command, action: allow, prefix: npx tsc}
+  - {kind: command, action: allow, prefix: npx vitest}
+  - {kind: command, action: allow, prefix: lint}
+
+  # ---------- shell navigation & search ----------
+  - {kind: command, action: allow, prefix: pushd}
+  - {kind: command, action: allow, prefix: popd}
+  - {kind: command, action: allow, prefix: find}
+  - {kind: command, action: allow, prefix: grep}
+  - {kind: command, action: allow, prefix: rg}
+  - {kind: command, action: allow, prefix: head}
+  - {kind: command, action: allow, prefix: tail}
+  - {kind: command, action: allow, prefix: "cd ~/Development"}
+  - {kind: command, action: allow, prefix: cd, only: [cursor], note: cursor cannot path-scope cd}
+
+  # ---------- git (read-only; force pushes gated below) ----------
+  - {kind: command, action: allow, prefix: git -C}
+  - {kind: command, action: allow, prefix: git diff}
+  - {kind: command, action: allow, prefix: git status}
+  - {kind: command, action: allow, prefix: git log}
+  - {kind: command, action: allow, prefix: git show}
+
+  # ---------- gh read-only surface ----------
+  - {kind: command, action: allow, prefix: gh issue view}
+  - {kind: command, action: allow, prefix: gh issue list}
+  - {kind: command, action: allow, prefix: gh issue status}
+  - {kind: command, action: allow, prefix: gh pr view}
+  - {kind: command, action: allow, prefix: gh pr list}
+  - {kind: command, action: allow, prefix: gh pr status}
+  - {kind: command, action: allow, prefix: gh pr diff}
+  - {kind: command, action: allow, prefix: gh pr checks}
+  - {kind: command, action: allow, prefix: gh repo view}
+  - {kind: command, action: allow, prefix: gh repo list}
+  - {kind: command, action: allow, prefix: gh release view}
+  - {kind: command, action: allow, prefix: gh release list}
+  - {kind: command, action: allow, prefix: gh run view}
+  - {kind: command, action: allow, prefix: gh run list}
+  - {kind: command, action: allow, prefix: gh run watch}
+  - {kind: command, action: allow, prefix: gh run rerun}
+  - {kind: command, action: allow, prefix: gh workflow view}
+  - {kind: command, action: allow, prefix: gh workflow list}
+  - {kind: command, action: allow, prefix: gh gist view}
+  - {kind: command, action: allow, prefix: gh gist list}
+  - {kind: command, action: allow, prefix: gh label list}
+  - {kind: command, action: allow, prefix: gh project view}
+  - {kind: command, action: allow, prefix: gh project list}
+  - {kind: command, action: allow, prefix: gh search}
+  - {kind: command, action: allow, prefix: gh status}
+  - {kind: command, action: allow, prefix: gh api repos/}
+
+  # gh -R <repo> read-only variants
+  - {kind: command, action: allow, prefix: "gh -R * issue view"}
+  - {kind: command, action: allow, prefix: "gh -R * issue list"}
+  - {kind: command, action: allow, prefix: "gh -R * pr view"}
+  - {kind: command, action: allow, prefix: "gh -R * pr list"}
+  - {kind: command, action: allow, prefix: "gh -R * pr status"}
+  - {kind: command, action: allow, prefix: "gh -R * pr diff"}
+  - {kind: command, action: allow, prefix: "gh -R * pr checks"}
+  - {kind: command, action: allow, prefix: "gh -R * release view"}
+  - {kind: command, action: allow, prefix: "gh -R * release list"}
+  - {kind: command, action: allow, prefix: "gh -R * run view"}
+  - {kind: command, action: allow, prefix: "gh -R * run list"}
+  - {kind: command, action: allow, prefix: "gh -R * run watch"}
+  - {kind: command, action: allow, prefix: "gh -R * run rerun"}
+  - {kind: command, action: allow, prefix: "gh -R * workflow view"}
+  - {kind: command, action: allow, prefix: "gh -R * workflow list"}
+  - {kind: command, action: allow, prefix: "gh -R * label list"}
+
+  # ---------- everyday shell utilities (promoted from repeated local approvals) ----------
+  - {kind: command, action: allow, prefix: ls}
+  - {kind: command, action: allow, prefix: cat}
+  - {kind: command, action: allow, prefix: echo}
+  - {kind: command, action: allow, prefix: diff}
+  - {kind: command, action: allow, prefix: which}
+  - {kind: command, action: allow, prefix: wc}
+  - {kind: command, action: allow, prefix: jq}
+  - {kind: command, action: allow, prefix: awk}
+  - {kind: command, action: allow, prefix: sed}
+  - {kind: command, action: allow, prefix: sort}
+  - {kind: command, action: allow, prefix: uniq}
+  - {kind: command, action: allow, prefix: cp}
+  - {kind: command, action: allow, prefix: lsof}
+
+  # ---------- go / node tooling ----------
+  - {kind: command, action: allow, prefix: gofmt}
+  - {kind: command, action: allow, prefix: gopls}
+  - {kind: command, action: allow, prefix: yarn lint}
+  - {kind: command, action: allow, prefix: yarn typecheck}
+
+  # ---------- git working-tree ops (all pushes ask-gated below) ----------
+  - {kind: command, action: allow, prefix: git fetch}
+  - {kind: command, action: allow, prefix: git checkout}
+  - {kind: command, action: allow, prefix: git add}
+  - {kind: command, action: allow, prefix: git commit}
+  - {kind: command, action: allow, prefix: git stash, only: [claude, zed], note: cursor cannot express the drop/clear ask gates}
+
+  # ---------- docker local dev ----------
+  - {kind: command, action: allow, prefix: docker ps}
+  - {kind: command, action: allow, prefix: docker logs}
+  - {kind: command, action: allow, prefix: docker inspect}
+  - {kind: command, action: allow, prefix: docker images}
+  - {kind: command, action: allow, prefix: docker start}
+  - {kind: command, action: allow, prefix: docker volume ls}
+  - {kind: command, action: allow, prefix: docker network ls}
+  - {kind: command, action: allow, prefix: docker network inspect}
+  - {kind: command, action: allow, prefix: docker compose}
+
+  # ---------- chezmoi (read-only; chezmoi git deliberately excluded) ----------
+  - {kind: command, action: allow, prefix: chezmoi managed}
+  - {kind: command, action: allow, prefix: chezmoi source-path}
+  - {kind: command, action: allow, prefix: chezmoi diff}
+  - {kind: command, action: allow, prefix: chezmoi status}
+
+  # ---------- tmux ----------
+  - {kind: command, action: allow, prefix: tmux show-options}
+  - {kind: command, action: allow, prefix: tmux set}
+
+  # ---------- ask before running ----------
+  # Every push prompts (ask beats both the git -C allow and auto mode's classifier).
+  - {kind: command, action: ask, prefix: git push}
+  - {kind: command, action: ask, prefix: "git -C * push"}
+  # Stash drop/clear discard work irreversibly; gate both spellings.
+  - {kind: command, action: ask, prefix: git stash drop}
+  - {kind: command, action: ask, prefix: "git -C * stash drop"}
+  - {kind: command, action: ask, prefix: git stash clear}
+  - {kind: command, action: ask, prefix: "git -C * stash clear"}
+  - {kind: command, action: ask, prefix: gh pr create}
+  - {kind: command, action: ask, prefix: "gh -R * pr create"}
+  - kind: command
+    action: ask
+    prefix: gh api
+    flags: ["-X", "-f", "-F", "--method", "--input", "--field", "--raw-field"]
+    only: [zed]
+    note: claude enforces gh api write flags via its PreToolUse hook
+
+  # ---------- paths: reading ----------
+  - {kind: path, action: allow, access: [read], glob: "~/Development/**"}
+
+  # ---------- paths: editing ----------
+  - {kind: path, action: allow, access: [edit, write], glob: "~/Development/nala-*/**"}
+  - {kind: path, action: allow, access: [edit, write], glob: "~/Development/Nala-*/**"}
+  - {kind: path, action: allow, access: [edit, write], glob: "~/Development/go-library/**"}
+  - {kind: path, action: allow, access: [edit, write], glob: "~/Development/vault-plugins/**"}
+  - {kind: path, action: allow, access: [edit, write], glob: "~/Development/terraform-aws/**"}
+  - {kind: path, action: allow, access: [read, edit, write], glob: "~/.cursor/worktrees/**"}
+  # rafiki-* deliberately not auto-allowed; uncomment to change that:
+  # - {kind: path, action: allow, access: [edit, write], glob: "~/Development/rafiki-*/**"}
+
+  # ---------- paths: sensitive files ----------
+  - {kind: path, action: deny, access: [edit, write], glob: "**/*.env", only: [zed, cursor]}
+  - {kind: path, action: deny, access: [edit, write], glob: "**/*.env.local", only: [zed, cursor]}
+  - {kind: path, action: deny, access: [edit, write], glob: "**/*.env.dev", only: [zed, cursor]}
+  - {kind: path, action: deny, access: [edit, write], glob: "**/*.env.development", only: [zed, cursor]}
+  - {kind: path, action: deny, access: [edit, write], glob: "**/*.env.test", only: [zed, cursor]}
+  - {kind: path, action: deny, access: [edit, write], glob: "**/*.env.testing", only: [zed, cursor]}
+  - {kind: path, action: deny, access: [edit, write], glob: "**/*.env.stage", only: [zed, cursor]}
+  - {kind: path, action: deny, access: [edit, write], glob: "**/*.env.staging", only: [zed, cursor]}
+  - {kind: path, action: deny, access: [edit, write], glob: "**/*.env.prod", only: [zed, cursor]}
+  - {kind: path, action: deny, access: [edit, write], glob: "**/*.env.production", only: [zed, cursor]}
+  - {kind: path, action: deny, access: [edit, write], glob: "**/*.env.ci", only: [zed, cursor]}
+  - {kind: path, action: deny, access: [edit, write], glob: "**/id_rsa", only: [zed, cursor]}
+  - {kind: path, action: deny, access: [edit, write], glob: "**/id_ed25519", only: [zed, cursor]}
+  - {kind: path, action: deny, access: [edit, write], glob: "**/id_ecdsa", only: [zed, cursor]}
+  - {kind: path, action: deny, access: [edit, write], glob: "**/.ssh/config", only: [zed, cursor]}
+  - {kind: path, action: deny, access: [edit, write], glob: "**/.ssh/known_hosts", only: [zed, cursor]}
+  - {kind: path, action: deny, access: [edit, write], glob: "**/.ssh/authorized_keys", only: [zed, cursor]}
+  - {kind: path, action: deny, access: [edit, write], glob: "**/credentials", only: [zed, cursor]}
+  - {kind: path, action: deny, access: [edit, write], glob: "**/credentials.json", only: [zed, cursor]}
+  - {kind: path, action: deny, access: [edit, write], glob: "**/*.pem", only: [zed, cursor]}
+  - {kind: path, action: deny, access: [edit, write], glob: "**/*.p12", only: [zed, cursor]}
+
+  # ---------- MCP: Atlassian (read-only Jira surface) ----------
+  # Zed only uses these if the server is added to Zed's context_servers.
+  - {kind: mcp, action: allow, server: atlassian, tool: getJiraIssue}
+  - {kind: mcp, action: allow, server: atlassian, tool: searchJiraIssuesUsingJql}
+  - {kind: mcp, action: allow, server: atlassian, tool: getVisibleJiraProjects}
+  - {kind: mcp, action: allow, server: atlassian, tool: getJiraIssueRemoteIssueLinks}
+  - {kind: mcp, action: allow, server: atlassian, tool: getJiraIssueTypeMetaWithFields}
+  - {kind: mcp, action: allow, server: atlassian, tool: getJiraProjectIssueTypesMetadata}
+  - {kind: mcp, action: allow, server: atlassian, tool: getTransitionsForJiraIssue}
+  - {kind: mcp, action: allow, server: atlassian, tool: getAccessibleAtlassianResources}
+  - {kind: mcp, action: allow, server: atlassian, tool: atlassianUserInfo}
+  - {kind: mcp, action: allow, server: atlassian, tool: jiraRead}
+  - {kind: mcp, action: allow, server: atlassian, tool: search}
+  - {kind: mcp, action: allow, server: atlassian, tool: lookupJiraAccountId}
+
+  # ---------- MCP: Datadog (read-only observability surface) ----------
+  - {kind: mcp, action: allow, server: datadog, tool: list_datadog_skills}
+  - {kind: mcp, action: allow, server: datadog, tool: load_datadog_skill}
+  - {kind: mcp, action: allow, server: datadog, tool: search_datadog_logs}
+  - {kind: mcp, action: allow, server: datadog, tool: analyze_datadog_logs}
+
+  # ---------- web fetch: durable documentation domains ----------
+  - {kind: fetch, action: allow, domain: github.com}
+  - {kind: fetch, action: allow, domain: raw.githubusercontent.com}
+  - {kind: fetch, action: allow, domain: docs.github.com}
